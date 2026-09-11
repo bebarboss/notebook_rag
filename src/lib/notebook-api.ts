@@ -59,7 +59,7 @@ export async function checkHealth(): Promise<boolean> {
 export async function searchDocs(params: {
   q: string;
   top_k: number;
-  service?: string;
+  service?: string | undefined;
 }): Promise<{ query: string; results: DocResult[] }> {
   const url = new URL(`${API_BASE_URL}/search`);
   url.searchParams.set("q", params.q);
@@ -73,7 +73,7 @@ export async function searchDocs(params: {
 export async function searchIncidents(params: {
   q: string;
   top_k: number;
-  service?: string;
+  service?: string | undefined;
 }): Promise<{ query: string; results: IncidentResult[] }> {
   const url = new URL(`${API_BASE_URL}/search/incidents`);
   url.searchParams.set("q", params.q);
