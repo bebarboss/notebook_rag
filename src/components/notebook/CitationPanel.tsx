@@ -1,4 +1,4 @@
-import { FileText, TriangleAlert, X } from "lucide-react";
+import { BookOpen, FileText, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Citation } from "@/lib/notebook-api";
@@ -12,14 +12,19 @@ export function CitationPanel({ citation, onClose }: { citation: Citation; onClo
     ["วิธีแก้ไข", citation.workaround],
   ];
 
+  const icon =
+    citation.kind === "incident" ? (
+      <TriangleAlert className="size-4 shrink-0 text-warning" />
+    ) : citation.kind === "case_category" ? (
+      <BookOpen className="size-4 shrink-0 text-primary" />
+    ) : (
+      <FileText className="size-4 shrink-0 text-primary" />
+    );
+
   return (
     <div className="flex h-full flex-col bg-surface">
       <div className="flex items-center gap-2 border-b p-4">
-        {citation.kind === "incident" ? (
-          <TriangleAlert className="size-4 shrink-0 text-warning" />
-        ) : (
-          <FileText className="size-4 shrink-0 text-primary" />
-        )}
+        {icon}
         <h2 className="flex-1 truncate text-sm font-semibold">อ้างอิง [{citation.number}]</h2>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="ปิด">
           <X className="size-4" />
@@ -30,14 +35,17 @@ export function CitationPanel({ citation, onClose }: { citation: Citation; onClo
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant={pct >= 70 ? "default" : "secondary"}>{pct}% เกี่ยวข้อง</Badge>
           {citation.service && <Badge variant="outline">{citation.service}</Badge>}
+          {citation.kind === "case_category" && <Badge variant="secondary">หมวดปัญหา</Badge>}
         </div>
 
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">แหล่งที่มา</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {citation.kind === "case_category" ? "ชื่อหมวดปัญหา" : "แหล่งที่มา"}
+          </p>
           <p className="break-words text-sm">{citation.source}</p>
         </div>
 
-        {citation.kind === "doc" ? (
+        {citation.kind === "doc" && (
           <>
             <div className="flex gap-6">
               {citation.page !== null && citation.page !== undefined && (
@@ -58,7 +66,18 @@ export function CitationPanel({ citation, onClose }: { citation: Citation; onClo
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{citation.content}</p>
             </div>
           </>
-        ) : (
+        )}
+
+        {citation.kind === "case_category" && (
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              ขั้นตอนการตรวจสอบโดยละเอียด
+            </p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{citation.content}</p>
+          </div>
+        )}
+
+        {citation.kind === "incident" && (
           <>
             <div>
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">

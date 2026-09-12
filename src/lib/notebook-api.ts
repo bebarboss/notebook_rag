@@ -23,7 +23,7 @@ function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
 
 export type Citation = {
   number: number;
-  kind: "doc" | "incident";
+  kind: "doc" | "incident" | "case_category";
   source: string;
   service: string | null;
   score: number;
@@ -248,6 +248,92 @@ export async function grantUserPermission(username: string, service: string): Pr
 export async function revokeUserPermission(username: string, service: string): Promise<void> {
   const res = await apiFetch(
     `${API_BASE_URL}/admin/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(service)}`,
+    { method: "DELETE", headers: authHeaders() },
+  );
+  if (!res.ok) await parseError(res);
+}
+
+export type CaseCategory = {
+  id: number;
+  name: string;
+  service: string | null;
+  detail: string;
+  incident_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listCaseCategories(): Promise<{ categories: CaseCategory[] }> {
+  const res = await apiFetch(`${API_BASE_URL}/case-categories`, { headers: authHeaders() });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function createCaseCategory(patch: {
+  name: string;
+  service?: string;
+  detail: string;
+}): Promise<CaseCategory> {
+  const res = await apiFetch(`${API_BASE_URL}/case-categories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function updateCaseCategory(
+  id: number,
+  patch: { name?: string; service?: string; detail?: string },
+): Promise<CaseCategory> {
+  const res = await apiFetch(`${API_BASE_URL}/case-categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function deleteCaseCategory(id: number): Promise<void> {
+  const res = await apiFetch(`${API_BASE_URL}/case-categories/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) await parseError(res);
+}
+
+export type IncidentBrief = {
+  incident_no: string;
+  service: string | null;
+  problem: string | null;
+  case_category_id: number | null;
+  case_category_name: string | null;
+};
+
+export async function listLinkedIncidentsBrief(): Promise<{ incidents: IncidentBrief[] }> {
+  // linked_only=true: หน้า "หมวดปัญหา" ต้องการแค่ incident ที่ผูกหมวดไว้แล้ว (จำนวนน้อย) ไม่ใช่
+  // incident ทั้งหมดในระบบ (อาจมีเป็นพันแถว) กันหน้า settings โหลดช้า/payload ใหญ่โดยไม่จำเป็น
+  const res = await apiFetch(`${API_BASE_URL}/incidents?linked_only=true`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function linkIncidentCategory(categoryId: number, incidentNo: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE_URL}/case-categories/${categoryId}/incidents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ incident_no: incidentNo }),
+  });
+  if (!res.ok) await parseError(res);
+}
+
+export async function unlinkIncidentCategory(incidentNo: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/incidents/${encodeURIComponent(incidentNo)}/case-category`,
     { method: "DELETE", headers: authHeaders() },
   );
   if (!res.ok) await parseError(res);
