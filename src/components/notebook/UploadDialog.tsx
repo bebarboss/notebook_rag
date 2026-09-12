@@ -134,9 +134,12 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="service">Service (ไม่บังคับ)</Label>
+          <Label htmlFor="service">
+            Service <span className="text-destructive">*</span>
+          </Label>
           <Input
             id="service"
+            required
             placeholder="เช่น payment, core-banking"
             value={service}
             onChange={(e) => setService(e.target.value)}
@@ -153,11 +156,12 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
             ยกเลิก
           </Button>
           <Button
-            disabled={files.length === 0}
+            disabled={files.length === 0 || !service.trim()}
             onClick={() => {
-              if (files.length === 0) return;
+              const trimmedService = service.trim();
+              if (files.length === 0 || !trimmedService) return;
               for (const f of files) {
-                onSubmit(f, service.trim());
+                onSubmit(f, trimmedService);
               }
               reset();
               onOpenChange(false);

@@ -150,10 +150,10 @@ export async function listSources(): Promise<{ sources: SourceInfo[] }> {
   return res.json();
 }
 
-export async function uploadSource(file: File, service?: string): Promise<UploadResponse> {
+export async function uploadSource(file: File, service: string): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);
-  if (service) form.append("service", service);
+  form.append("service", service);
   const res = await apiFetch(`${API_BASE_URL}/upload`, {
     method: "POST",
     headers: authHeaders(),

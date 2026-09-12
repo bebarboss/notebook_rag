@@ -123,7 +123,7 @@ function NotebookPage() {
         id,
         filename: file.name,
         ext: fileExt(file.name),
-        service: svc || null,
+        service: svc,
         status: "uploading",
         uploadedAt: new Date().toISOString(),
         selected: true,
@@ -132,7 +132,7 @@ function NotebookPage() {
     ]);
     setActiveId(id);
     try {
-      const res = await uploadSource(file, svc || undefined);
+      const res = await uploadSource(file, svc);
       setSources((prev) =>
         prev.map((s) =>
           s.id === id
