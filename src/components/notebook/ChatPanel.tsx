@@ -3,10 +3,7 @@ import { Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import type { Citation } from "@/lib/notebook-api";
-
-export const ALL_CHANNEL = "";
 
 export type ThreadItem = {
   id: string;
@@ -21,8 +18,6 @@ export type ThreadItem = {
 
 type Props = {
   thread: ThreadItem[];
-  topK: number;
-  setTopK: (n: number) => void;
   availableChannels: string[];
   activeChannel: string;
   onChannelChange: (channel: string) => void;
@@ -66,8 +61,6 @@ function AnswerText({
 
 export function ChatPanel({
   thread,
-  topK,
-  setTopK,
   availableChannels,
   activeChannel,
   onChannelChange,
@@ -87,45 +80,28 @@ export function ChatPanel({
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="flex flex-wrap items-center gap-3 border-b bg-surface px-4 py-3">
-        <div className="flex min-w-[180px] items-center gap-2">
-          <span className="whitespace-nowrap text-xs text-muted-foreground">top_k</span>
-          <Slider
-            value={[topK]}
-            min={1}
-            max={50}
-            step={1}
-            onValueChange={(v) => setTopK(v[0] ?? 5)}
-            className="w-28"
-          />
-          <Badge variant="secondary">{topK}</Badge>
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => onChannelChange(ALL_CHANNEL)}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              activeChannel === ALL_CHANNEL
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            ทั้งหมด
-          </button>
-          {availableChannels.map((ch) => (
-            <button
-              key={ch}
-              type="button"
-              onClick={() => onChannelChange(ch)}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                activeChannel === ch
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {ch}
-            </button>
-          ))}
-        </div>
+        {availableChannels.length === 0 ? (
+          <span className="text-xs text-muted-foreground">
+            ยังไม่มี service ให้เลือก ติดต่อ admin เพื่อขอสิทธิ์เข้าถึง
+          </span>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+            {availableChannels.map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => onChannelChange(ch)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  activeChannel === ch
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {ch}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -160,10 +136,11 @@ export function ChatPanel({
                   {t.question}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                <Badge variant="outline">top_k {t.topK}</Badge>
-                {t.service && <Badge variant="outline">service: {t.service}</Badge>}
-              </div>
+              {t.service && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <Badge variant="outline">service: {t.service}</Badge>
+                </div>
+              )}
 
               {t.loading && (
                 <div className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
@@ -206,10 +183,20 @@ export function ChatPanel({
               }
             }}
             rows={1}
-            placeholder="ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
+            disabled={!activeChannel}
+            placeholder={
+              activeChannel
+                ? "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
+                : "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
+            }
             className="max-h-40 min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
-          <Button size="icon" onClick={submit} disabled={!q.trim()} aria-label="ส่งคำถาม">
+          <Button
+            size="icon"
+            onClick={submit}
+            disabled={!q.trim() || !activeChannel}
+            aria-label="ส่งคำถาม"
+          >
             <Send className="size-4" />
           </Button>
         </div>

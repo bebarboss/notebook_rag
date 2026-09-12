@@ -10,7 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SourcesPanel } from "@/components/notebook/SourcesPanel";
 import { DetailsPanel } from "@/components/notebook/DetailsPanel";
 import { CitationPanel } from "@/components/notebook/CitationPanel";
-import { ALL_CHANNEL, ChatPanel, type ThreadItem } from "@/components/notebook/ChatPanel";
+import { ChatPanel, type ThreadItem } from "@/components/notebook/ChatPanel";
 import { UploadDialog } from "@/components/notebook/UploadDialog";
 import {
   askQuestion,
@@ -44,6 +44,8 @@ export const Route = createFileRoute("/")({
   component: NotebookPage,
 });
 
+const TOP_K = 5;
+
 function NotebookPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -56,8 +58,7 @@ function NotebookPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [threadsByChannel, setThreadsByChannel] = useState<Record<string, ThreadItem[]>>({});
-  const [activeChannel, setActiveChannel] = useState(ALL_CHANNEL);
-  const [topK, setTopK] = useState(5);
+  const [activeChannel, setActiveChannel] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
@@ -100,17 +101,20 @@ function NotebookPage() {
 
   const settingsQuery = useQuery({ queryKey: ["settings"], queryFn: getSettings });
   const availableChannels = settingsQuery.data?.channels ?? [];
-  const topKAppliedFromSettings = useRef(false);
+  const isAdmin = settingsQuery.data?.is_admin ?? false;
 
   useEffect(() => {
-    if (topKAppliedFromSettings.current) return;
-    if (settingsQuery.data?.default_top_k) {
-      topKAppliedFromSettings.current = true;
-      setTopK(settingsQuery.data.default_top_k);
+    const first = settingsQuery.data?.channels[0];
+    if (!activeChannel && first) {
+      setActiveChannel(first);
     }
-  }, [settingsQuery.data]);
+  }, [activeChannel, settingsQuery.data]);
 
   const currentThread = threadsByChannel[activeChannel] ?? [];
+
+  const visibleSources = activeChannel
+    ? sources.filter((s) => s.service === activeChannel)
+    : sources;
 
   const handleUpload = useCallback(async (file: File, svc: string) => {
     const id = crypto.randomUUID();
@@ -150,7 +154,7 @@ function NotebookPage() {
     async (question: string) => {
       const channel = activeChannel; // capture ตอนถาม กันกรณีสลับ channel ระหว่างรอคำตอบ
       const id = crypto.randomUUID();
-      const item: ThreadItem = { id, question, topK, service: channel, loading: true };
+      const item: ThreadItem = { id, question, topK: TOP_K, service: channel, loading: true };
       setThreadsByChannel((prev) => ({
         ...prev,
         [channel]: [...(prev[channel] ?? []), item],
@@ -159,7 +163,7 @@ function NotebookPage() {
       try {
         const res = await askQuestion({
           question,
-          top_k: topK,
+          top_k: TOP_K,
           service: channel || undefined,
         });
         setThreadsByChannel((prev) => ({
@@ -181,7 +185,7 @@ function NotebookPage() {
         toast.error(detail);
       }
     },
-    [activeChannel, topK],
+    [activeChannel],
   );
 
   const handleCiteClick = useCallback((citation: Citation) => {
@@ -196,7 +200,7 @@ function NotebookPage() {
 
   const sourcesPanel = (
     <SourcesPanel
-      sources={sources}
+      sources={visibleSources}
       activeId={activeId}
       onAdd={() => setUploadOpen(true)}
       onToggle={(id) =>
@@ -244,7 +248,9 @@ function NotebookPage() {
     [sources, queryClient],
   );
 
-  const detailsPanel = <DetailsPanel source={activeSource} onRemove={handleRemove} />;
+  const detailsPanel = (
+    <DetailsPanel source={activeSource} onRemove={handleRemove} isAdmin={isAdmin} />
+  );
 
   const rightPanel = activeCitation ? (
     <CitationPanel citation={activeCitation} onClose={() => setActiveCitation(null)} />
@@ -306,8 +312,6 @@ function NotebookPage() {
           <main className="min-w-0 flex-1">
             <ChatPanel
               thread={currentThread}
-              topK={topK}
-              setTopK={setTopK}
               availableChannels={availableChannels}
               activeChannel={activeChannel}
               onChannelChange={setActiveChannel}

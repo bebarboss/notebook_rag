@@ -8,17 +8,17 @@ import type { SourceItem } from "@/lib/notebook-types";
 export function DetailsPanel({
   source,
   onRemove,
+  isAdmin,
 }: {
   source: SourceItem | null;
   onRemove: (id: string) => void;
+  isAdmin: boolean;
 }) {
   if (!source) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 bg-surface p-6 text-center">
         <Info className="size-6 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          เลือกแหล่งข้อมูลทางซ้ายเพื่อดูรายละเอียด
-        </p>
+        <p className="text-sm text-muted-foreground">เลือกแหล่งข้อมูลทางซ้ายเพื่อดูรายละเอียด</p>
       </div>
     );
   }
@@ -77,23 +77,25 @@ export function DetailsPanel({
         </Badge>
       </div>
 
-      <div className="border-t p-4">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full text-destructive"
-              onClick={() => onRemove(source.id)}
-            >
-              <Trash2 className="size-4" />
-              ลบออกจากรายการ
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            ลบข้อมูลที่ ingest ไว้บนเซิร์ฟเวอร์ถาวร (รวมไฟล์ที่อัปโหลดไว้ด้วย)
-          </TooltipContent>
-        </Tooltip>
-      </div>
+      {isAdmin && (
+        <div className="border-t p-4">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full text-destructive"
+                onClick={() => onRemove(source.id)}
+              >
+                <Trash2 className="size-4" />
+                ลบออกจากรายการ
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              ลบข้อมูลที่ ingest ไว้บนเซิร์ฟเวอร์ถาวร (รวมไฟล์ที่อัปโหลดไว้ด้วย)
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 }
