@@ -1,0 +1,82 @@
+import { FileText, TriangleAlert, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { Citation } from "@/lib/notebook-api";
+
+export function CitationPanel({ citation, onClose }: { citation: Citation; onClose: () => void }) {
+  const pct = Math.round(Math.max(0, Math.min(1, citation.score)) * 100);
+
+  const incidentRows: Array<[string, string | null | undefined]> = [
+    ["ปัญหา", citation.problem],
+    ["สาเหตุ", citation.cause],
+    ["วิธีแก้ไข", citation.workaround],
+  ];
+
+  return (
+    <div className="flex h-full flex-col bg-surface">
+      <div className="flex items-center gap-2 border-b p-4">
+        {citation.kind === "incident" ? (
+          <TriangleAlert className="size-4 shrink-0 text-warning" />
+        ) : (
+          <FileText className="size-4 shrink-0 text-primary" />
+        )}
+        <h2 className="flex-1 truncate text-sm font-semibold">อ้างอิง [{citation.number}]</h2>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="ปิด">
+          <X className="size-4" />
+        </Button>
+      </div>
+
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={pct >= 70 ? "default" : "secondary"}>{pct}% เกี่ยวข้อง</Badge>
+          {citation.service && <Badge variant="outline">{citation.service}</Badge>}
+        </div>
+
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">แหล่งที่มา</p>
+          <p className="break-words text-sm">{citation.source}</p>
+        </div>
+
+        {citation.kind === "doc" ? (
+          <>
+            <div className="flex gap-6">
+              {citation.page !== null && citation.page !== undefined && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">หน้า</p>
+                  <p className="text-sm">{citation.page}</p>
+                </div>
+              )}
+              {citation.chunk_index !== null && citation.chunk_index !== undefined && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Chunk</p>
+                  <p className="text-sm">{citation.chunk_index}</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">เนื้อหา</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{citation.content}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Incident No.
+              </p>
+              <p className="text-sm">{citation.incident_no}</p>
+            </div>
+            {incidentRows.map(([label, value]) => (
+              <div key={label}>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {value?.trim() ? value : "—"}
+                </p>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

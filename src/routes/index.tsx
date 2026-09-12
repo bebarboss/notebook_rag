@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Menu, Moon, PanelRight, Sun } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LogOut, Menu, Moon, PanelRight, Settings, Sun } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -9,16 +9,20 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SourcesPanel } from "@/components/notebook/SourcesPanel";
 import { DetailsPanel } from "@/components/notebook/DetailsPanel";
-import { ChatPanel, type ThreadItem } from "@/components/notebook/ChatPanel";
+import { CitationPanel } from "@/components/notebook/CitationPanel";
+import { ALL_CHANNEL, ChatPanel, type ThreadItem } from "@/components/notebook/ChatPanel";
 import { UploadDialog } from "@/components/notebook/UploadDialog";
 import {
+  askQuestion,
   checkHealth,
+  deleteSource,
   fileExt,
-  searchDocs,
-  searchIncidents,
+  getSettings,
+  listSources,
   uploadSource,
-  type SearchMode,
+  type Citation,
 } from "@/lib/notebook-api";
+import { clearSession, getToken } from "@/lib/auth";
 import type { SourceItem } from "@/lib/notebook-types";
 
 export const Route = createFileRoute("/")({
@@ -41,12 +45,19 @@ export const Route = createFileRoute("/")({
 });
 
 function NotebookPage() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!getToken()) void navigate({ to: "/login" });
+  }, [navigate]);
+
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [thread, setThread] = useState<ThreadItem[]>([]);
-  const [mode, setMode] = useState<SearchMode>("docs");
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [threadsByChannel, setThreadsByChannel] = useState<Record<string, ThreadItem[]>>({});
+  const [activeChannel, setActiveChannel] = useState(ALL_CHANNEL);
   const [topK, setTopK] = useState(5);
-  const [service, setService] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
@@ -62,10 +73,44 @@ function NotebookPage() {
     refetchInterval: 30_000,
   });
 
+  const sourcesQuery = useQuery({ queryKey: ["sources"], queryFn: listSources });
+  const hydrated = useRef(false);
+
+  useEffect(() => {
+    if (hydrated.current || !sourcesQuery.data) return;
+    hydrated.current = true;
+    setSources(
+      sourcesQuery.data.sources.map((s) => ({
+        id: `${s.source}::${s.service ?? ""}`,
+        filename: s.filename,
+        ext: s.ext,
+        service: s.service,
+        status: "ingested",
+        uploadedAt: s.created_at,
+        selected: true,
+        savedPath: s.source,
+      })),
+    );
+  }, [sourcesQuery.data]);
+
   const activeSource = useMemo(
     () => sources.find((s) => s.id === activeId) ?? null,
     [sources, activeId],
   );
+
+  const settingsQuery = useQuery({ queryKey: ["settings"], queryFn: getSettings });
+  const availableChannels = settingsQuery.data?.channels ?? [];
+  const topKAppliedFromSettings = useRef(false);
+
+  useEffect(() => {
+    if (topKAppliedFromSettings.current) return;
+    if (settingsQuery.data?.default_top_k) {
+      topKAppliedFromSettings.current = true;
+      setTopK(settingsQuery.data.default_top_k);
+    }
+  }, [settingsQuery.data]);
+
+  const currentThread = threadsByChannel[activeChannel] ?? [];
 
   const handleUpload = useCallback(async (file: File, svc: string) => {
     const id = crypto.randomUUID();
@@ -103,42 +148,51 @@ function NotebookPage() {
 
   const handleAsk = useCallback(
     async (question: string) => {
+      const channel = activeChannel; // capture ตอนถาม กันกรณีสลับ channel ระหว่างรอคำตอบ
       const id = crypto.randomUUID();
-      const item: ThreadItem = { id, question, mode, topK, service, loading: true };
-      setThread((prev) => [...prev, item]);
-
-      const selectedNames = sources.filter((s) => s.selected).map((s) => s.filename);
-      const filterBySelection = <T extends { source: string }>(rows: T[]) =>
-        selectedNames.length > 0 && selectedNames.length < sources.length
-          ? rows.filter((r) => selectedNames.some((n) => r.source.includes(n)))
-          : rows;
+      const item: ThreadItem = { id, question, topK, service: channel, loading: true };
+      setThreadsByChannel((prev) => ({
+        ...prev,
+        [channel]: [...(prev[channel] ?? []), item],
+      }));
 
       try {
-        if (mode === "docs") {
-          const res = await searchDocs({ q: question, top_k: topK, service: service || undefined });
-          const docs = filterBySelection(res.results).sort((a, b) => b.score - a.score);
-          setThread((prev) => prev.map((t) => (t.id === id ? { ...t, loading: false, docs } : t)));
-        } else {
-          const res = await searchIncidents({
-            q: question,
-            top_k: topK,
-            service: service || undefined,
-          });
-          const incidents = filterBySelection(res.results).sort((a, b) => b.score - a.score);
-          setThread((prev) =>
-            prev.map((t) => (t.id === id ? { ...t, loading: false, incidents } : t)),
-          );
-        }
+        const res = await askQuestion({
+          question,
+          top_k: topK,
+          service: channel || undefined,
+        });
+        setThreadsByChannel((prev) => ({
+          ...prev,
+          [channel]: (prev[channel] ?? []).map((t) =>
+            t.id === id
+              ? { ...t, loading: false, answer: res.answer, citations: res.citations }
+              : t,
+          ),
+        }));
       } catch (e) {
-        const detail = e instanceof Error ? e.message : "ค้นหาไม่สำเร็จ";
-        setThread((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, loading: false, error: detail } : t)),
-        );
+        const detail = e instanceof Error ? e.message : "ถามไม่สำเร็จ";
+        setThreadsByChannel((prev) => ({
+          ...prev,
+          [channel]: (prev[channel] ?? []).map((t) =>
+            t.id === id ? { ...t, loading: false, error: detail } : t,
+          ),
+        }));
         toast.error(detail);
       }
     },
-    [mode, topK, service, sources],
+    [activeChannel, topK],
   );
+
+  const handleCiteClick = useCallback((citation: Citation) => {
+    setActiveCitation(citation);
+    setRightOpen(true);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearSession();
+    void navigate({ to: "/login" });
+  }, [navigate]);
 
   const sourcesPanel = (
     <SourcesPanel
@@ -150,22 +204,52 @@ function NotebookPage() {
       }
       onSelect={(id) => {
         setActiveId(id);
+        setActiveCitation(null);
         setLeftOpen(false);
         setRightOpen(true);
       }}
     />
   );
 
-  const detailsPanel = (
-    <DetailsPanel
-      source={activeSource}
-      onRemove={(id) => {
+  const handleRemove = useCallback(
+    async (id: string) => {
+      const target = sources.find((s) => s.id === id);
+      if (!target) return;
+
+      // ยังไม่เคย ingest สำเร็จ (เช่น upload พัง) — เอาออกจาก UI อย่างเดียวพอ
+      if (!target.savedPath) {
         setSources((prev) => prev.filter((s) => s.id !== id));
         setActiveId(null);
         setRightOpen(false);
-        toast.success("ลบออกจากรายการแล้ว");
-      }}
-    />
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `ลบ "${target.filename}" ออกจากระบบถาวร (รวมข้อมูลที่ ingest ไว้บน server) ต้องการดำเนินการต่อหรือไม่?`,
+      );
+      if (!confirmed) return;
+
+      try {
+        await deleteSource(target.savedPath, target.service);
+        setSources((prev) => prev.filter((s) => s.id !== id));
+        setActiveId(null);
+        setRightOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["sources"] });
+        toast.success(`ลบ ${target.filename} ออกจากระบบแล้ว`);
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : "ลบไม่สำเร็จ";
+        toast.error(detail);
+      }
+    },
+    [sources, queryClient],
+  );
+
+  const detailsPanel = <DetailsPanel source={activeSource} onRemove={handleRemove} />;
+
+  const rightPanel = activeCitation ? (
+    <CitationPanel citation={activeCitation} onClose={() => setActiveCitation(null)} />
+  ) : (
+    detailsPanel
   );
 
   return (
@@ -206,6 +290,14 @@ function NotebookPage() {
             >
               <PanelRight className="size-4" />
             </Button>
+            <Button variant="ghost" size="icon" asChild aria-label="ตั้งค่า">
+              <Link to="/settings">
+                <Settings className="size-4" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="ออกจากระบบ">
+              <LogOut className="size-4" />
+            </Button>
           </div>
         </header>
 
@@ -213,19 +305,19 @@ function NotebookPage() {
           <aside className="hidden w-[280px] shrink-0 border-r lg:block">{sourcesPanel}</aside>
           <main className="min-w-0 flex-1">
             <ChatPanel
-              thread={thread}
-              mode={mode}
-              setMode={setMode}
+              thread={currentThread}
               topK={topK}
               setTopK={setTopK}
-              service={service}
-              setService={setService}
+              availableChannels={availableChannels}
+              activeChannel={activeChannel}
+              onChannelChange={setActiveChannel}
               hasSources={sources.length > 0}
               onAsk={handleAsk}
               onAddSource={() => setUploadOpen(true)}
+              onCiteClick={handleCiteClick}
             />
           </main>
-          <aside className="hidden w-[320px] shrink-0 border-l xl:block">{detailsPanel}</aside>
+          <aside className="hidden w-[320px] shrink-0 border-l xl:block">{rightPanel}</aside>
         </div>
       </div>
 
@@ -239,7 +331,7 @@ function NotebookPage() {
       <Sheet open={rightOpen} onOpenChange={setRightOpen}>
         <SheetContent side="right" className="w-[320px] p-0">
           <SheetTitle className="sr-only">รายละเอียดแหล่งข้อมูล</SheetTitle>
-          {detailsPanel}
+          {rightPanel}
         </SheetContent>
       </Sheet>
 

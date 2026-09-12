@@ -90,7 +90,7 @@ export function DetailsPanel({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            ลบออกจากรายการฝั่งหน้าเว็บเท่านั้น ข้อมูลที่ ingest แล้วบนเซิร์ฟเวอร์จะยังอยู่
+            ลบข้อมูลที่ ingest ไว้บนเซิร์ฟเวอร์ถาวร (รวมไฟล์ที่อัปโหลดไว้ด้วย)
           </TooltipContent>
         </Tooltip>
       </div>
