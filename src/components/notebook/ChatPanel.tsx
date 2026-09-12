@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import type { Citation } from "@/lib/notebook-api";
 
 export type ThreadItem = {
@@ -77,6 +80,7 @@ export function ChatPanel({
   onCiteClick,
 }: Props) {
   const [q, setQ] = useState("");
+  const [channelPickerOpen, setChannelPickerOpen] = useState(false);
 
   const submit = () => {
     if (!q.trim()) return;
@@ -92,18 +96,50 @@ export function ChatPanel({
             ยังไม่มี service ให้เลือก ติดต่อ admin เพื่อขอสิทธิ์เข้าถึง
           </span>
         ) : (
-          <Select value={activeChannel} onValueChange={onChannelChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="เลือก service" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableChannels.map((ch) => (
-                <SelectItem key={ch} value={ch}>
-                  {ch}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Service</span>
+            <Popover open={channelPickerOpen} onOpenChange={setChannelPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={channelPickerOpen}
+                  className="w-[200px] justify-between font-normal"
+                >
+                  {activeChannel || "เลือก service"}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0">
+                <Command>
+                  <CommandInput placeholder="ค้นหา service..." />
+                  <CommandList>
+                    <CommandEmpty>ไม่พบ service</CommandEmpty>
+                    <CommandGroup>
+                      {availableChannels.map((ch) => (
+                        <CommandItem
+                          key={ch}
+                          value={ch}
+                          onSelect={(value) => {
+                            onChannelChange(value);
+                            setChannelPickerOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 size-4",
+                              activeChannel === ch ? "opacity-100" : "opacity-0",
+                            )}
+                          />
+                          {ch}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         )}
       </div>
 
