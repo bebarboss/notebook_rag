@@ -8,6 +8,19 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// เมื่อ backend อยู่หลัง ngrok free tier มันจะคืนหน้า "browser warning" HTML แทน response
+// จริงให้กับ request ที่มาจาก browser จริง (ไม่ใช่ curl) จนกว่าจะเห็น header นี้ — ไม่มีผล
+// อะไรถ้า backend ไม่ได้อยู่หลัง ngrok จึงใส่ไว้เสมอโดยไม่ต้องเช็คว่า URL เป็น ngrok หรือไม่
+function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    headers: {
+      "ngrok-skip-browser-warning": "true",
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  });
+}
+
 export type Citation = {
   number: number;
   kind: "doc" | "incident";
@@ -57,7 +70,7 @@ export type AuthResult = {
 };
 
 export async function registerUser(username: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+  const res = await apiFetch(`${API_BASE_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -67,7 +80,7 @@ export async function registerUser(username: string, password: string): Promise<
 }
 
 export async function loginUser(username: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+  const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -77,7 +90,7 @@ export async function loginUser(username: string, password: string): Promise<Aut
 }
 
 export async function loginWithGoogle(credential: string): Promise<AuthResult> {
-  const res = await fetch(`${API_BASE_URL}/auth/google`, {
+  const res = await apiFetch(`${API_BASE_URL}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ credential }),
@@ -88,7 +101,7 @@ export async function loginWithGoogle(credential: string): Promise<AuthResult> {
 
 export async function checkHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE_URL}/health`);
+    const res = await apiFetch(`${API_BASE_URL}/health`);
     if (!res.ok) return false;
     const body = (await res.json()) as { status?: string };
     return body?.status === "ok";
@@ -108,7 +121,7 @@ export async function askQuestion(params: {
   top_k: number;
   service?: string | undefined;
 }): Promise<AskResult> {
-  const res = await fetch(`${API_BASE_URL}/ask`, {
+  const res = await apiFetch(`${API_BASE_URL}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
@@ -132,7 +145,7 @@ export type SourceInfo = {
 };
 
 export async function listSources(): Promise<{ sources: SourceInfo[] }> {
-  const res = await fetch(`${API_BASE_URL}/sources`, { headers: authHeaders() });
+  const res = await apiFetch(`${API_BASE_URL}/sources`, { headers: authHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
@@ -141,7 +154,7 @@ export async function uploadSource(file: File, service?: string): Promise<Upload
   const form = new FormData();
   form.append("file", file);
   if (service) form.append("service", service);
-  const res = await fetch(`${API_BASE_URL}/upload`, {
+  const res = await apiFetch(`${API_BASE_URL}/upload`, {
     method: "POST",
     headers: authHeaders(),
     body: form,
@@ -157,7 +170,7 @@ export async function deleteSource(
   const url = new URL(`${API_BASE_URL}/sources`);
   url.searchParams.set("source", source);
   if (service) url.searchParams.set("service", service);
-  const res = await fetch(url.toString(), { method: "DELETE", headers: authHeaders() });
+  const res = await apiFetch(url.toString(), { method: "DELETE", headers: authHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
@@ -172,7 +185,7 @@ export type AppSettings = {
 };
 
 export async function getSettings(): Promise<AppSettings> {
-  const res = await fetch(`${API_BASE_URL}/settings`, { headers: authHeaders() });
+  const res = await apiFetch(`${API_BASE_URL}/settings`, { headers: authHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
@@ -182,7 +195,7 @@ export async function updateSettings(patch: {
   default_top_k?: number;
   typhoon_api_key?: string;
 }): Promise<AppSettings> {
-  const res = await fetch(`${API_BASE_URL}/settings`, {
+  const res = await apiFetch(`${API_BASE_URL}/settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(patch),
@@ -192,7 +205,7 @@ export async function updateSettings(patch: {
 }
 
 export async function addChannel(name: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/settings/channels`, {
+  const res = await apiFetch(`${API_BASE_URL}/settings/channels`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ name }),
@@ -201,7 +214,7 @@ export async function addChannel(name: string): Promise<void> {
 }
 
 export async function removeChannel(name: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/settings/channels/${encodeURIComponent(name)}`, {
+  const res = await apiFetch(`${API_BASE_URL}/settings/channels/${encodeURIComponent(name)}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -215,13 +228,13 @@ export type UserInfo = {
 };
 
 export async function listUsers(): Promise<{ users: UserInfo[] }> {
-  const res = await fetch(`${API_BASE_URL}/admin/users`, { headers: authHeaders() });
+  const res = await apiFetch(`${API_BASE_URL}/admin/users`, { headers: authHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
 
 export async function grantUserPermission(username: string, service: string): Promise<void> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/admin/users/${encodeURIComponent(username)}/permissions`,
     {
       method: "POST",
@@ -233,7 +246,7 @@ export async function grantUserPermission(username: string, service: string): Pr
 }
 
 export async function revokeUserPermission(username: string, service: string): Promise<void> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE_URL}/admin/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(service)}`,
     { method: "DELETE", headers: authHeaders() },
   );
@@ -256,7 +269,7 @@ export type MyAiSettings = {
 };
 
 export async function getMyAiSettings(): Promise<MyAiSettings> {
-  const res = await fetch(`${API_BASE_URL}/me/ai-settings`, { headers: authHeaders() });
+  const res = await apiFetch(`${API_BASE_URL}/me/ai-settings`, { headers: authHeaders() });
   if (!res.ok) await parseError(res);
   return res.json();
 }
@@ -267,7 +280,7 @@ export async function updateMyAiSettings(patch: {
   ai_api_key?: string;
   ai_base_url?: string;
 }): Promise<MyAiSettings> {
-  const res = await fetch(`${API_BASE_URL}/me/ai-settings`, {
+  const res = await apiFetch(`${API_BASE_URL}/me/ai-settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(patch),
@@ -277,7 +290,7 @@ export async function updateMyAiSettings(patch: {
 }
 
 export async function clearMyAiSettings(): Promise<MyAiSettings> {
-  const res = await fetch(`${API_BASE_URL}/me/ai-settings`, {
+  const res = await apiFetch(`${API_BASE_URL}/me/ai-settings`, {
     method: "DELETE",
     headers: authHeaders(),
   });
