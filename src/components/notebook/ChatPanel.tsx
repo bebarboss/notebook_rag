@@ -37,7 +37,33 @@ type Props = {
   onCiteClick: (citation: Citation) => void;
 };
 
-// แยกข้อความคำตอบตามรูปแบบ [n] แล้วแปลงให้เป็นปุ่มคลิกได้ที่ map ไปยัง citations[n-1]
+// แยกข้อความส่วนที่เหลือ (นอก code block) ตามรูปแบบ [n] แล้วแปลงให้เป็นปุ่มคลิกได้ที่ map ไปยัง citations[n-1]
+function renderWithCitations(
+  text: string,
+  citations: Citation[],
+  onCiteClick: (c: Citation) => void,
+  keyPrefix: string,
+) {
+  const parts = text.split(/(\[\d+\])/g);
+  return parts.map((part, i) => {
+    const m = /^\[(\d+)\]$/.exec(part);
+    const citation = m ? citations[Number(m[1]) - 1] : undefined;
+    if (!citation) return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+    return (
+      <button
+        key={`${keyPrefix}-${i}`}
+        type="button"
+        onClick={() => onCiteClick(citation)}
+        className="mx-0.5 inline-flex items-center rounded bg-primary/15 px-1.5 py-0.5 align-middle text-xs font-semibold text-primary hover:bg-primary/25"
+      >
+        {part}
+      </button>
+    );
+  });
+}
+
+// แยกข้อความคำตอบเป็นส่วน code block (```...```) กับข้อความปกติ — code block render เป็น
+// <pre><code> ตัวเอกซ์เตี้ยม (monospace) ไม่ต้อง parse [n] ข้างในเพราะโค้ด/query ไม่มีการอ้างอิง
 function AnswerText({
   text,
   citations,
@@ -47,23 +73,23 @@ function AnswerText({
   citations: Citation[];
   onCiteClick: (c: Citation) => void;
 }) {
-  const parts = text.split(/(\[\d+\])/g);
+  const segments = text.split(/(```[a-zA-Z]*\n?[\s\S]*?```)/g);
   return (
     <>
-      {parts.map((part, i) => {
-        const m = /^\[(\d+)\]$/.exec(part);
-        const citation = m ? citations[Number(m[1]) - 1] : undefined;
-        if (!citation) return <span key={i}>{part}</span>;
-        return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => onCiteClick(citation)}
-            className="mx-0.5 inline-flex items-center rounded bg-primary/15 px-1.5 py-0.5 align-middle text-xs font-semibold text-primary hover:bg-primary/25"
-          >
-            {part}
-          </button>
-        );
+      {segments.map((seg, si) => {
+        const codeMatch = /^```([a-zA-Z]*)\n?([\s\S]*?)```$/.exec(seg);
+        if (codeMatch) {
+          const code = (codeMatch[2] ?? "").replace(/\n$/, "");
+          return (
+            <pre
+              key={si}
+              className="my-2 overflow-x-auto rounded-lg border bg-muted p-3 font-mono text-xs"
+            >
+              <code>{code}</code>
+            </pre>
+          );
+        }
+        return <span key={si}>{renderWithCitations(seg, citations, onCiteClick, `${si}`)}</span>;
       })}
     </>
   );
