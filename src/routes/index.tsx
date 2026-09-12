@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Moon, PanelRight, Settings, Sun } from "lucide-react";
+import { BookOpen, LogOut, Menu, Moon, PanelRight, Settings, Sun } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -296,6 +296,13 @@ function NotebookPage() {
             >
               <PanelRight className="size-4" />
             </Button>
+            {isAdmin && (
+              <Button variant="ghost" size="icon" asChild aria-label="หมวดปัญหา">
+                <Link to="/known-issues">
+                  <BookOpen className="size-4" />
+                </Link>
+              </Button>
+            )}
             <Button variant="ghost" size="icon" asChild aria-label="ตั้งค่า">
               <Link to="/settings">
                 <Settings className="size-4" />
