@@ -298,7 +298,7 @@ export async function clearMyAiSettings(): Promise<MyAiSettings> {
   return res.json();
 }
 
-export const ACCEPTED_EXT = [".pdf", ".txt", ".epub", ".xps", ".fb2", ".cbz", ".csv"];
+export const ACCEPTED_EXT = [".pdf", ".txt", ".epub", ".xps", ".fb2", ".cbz", ".pptx", ".csv"];
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 export function fileExt(name: string): string {
