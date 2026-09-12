@@ -30,8 +30,7 @@ export function SourcesPanel({ sources, activeId, onAdd, onToggle, onSelect }: P
     const f = filter.trim().toLowerCase();
     if (!f) return sources;
     return sources.filter(
-      (s) =>
-        s.filename.toLowerCase().includes(f) || (s.service ?? "").toLowerCase().includes(f),
+      (s) => s.filename.toLowerCase().includes(f) || (s.service ?? "").toLowerCase().includes(f),
     );
   }, [sources, filter]);
 
@@ -116,7 +115,9 @@ export function SourcesPanel({ sources, activeId, onAdd, onToggle, onSelect }: P
                       <FileText className="mt-0.5 size-4 shrink-0 text-primary" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{s.filename}</p>
+                      <p className="line-clamp-2 break-words text-xs font-medium leading-snug">
+                        {s.filename}
+                      </p>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         {s.status === "uploading" && (
                           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
