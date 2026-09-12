@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Upload, FileUp } from "lucide-react";
+import { Upload, FileUp, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,26 +21,35 @@ type Props = {
 };
 
 export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [service, setService] = useState("");
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const pick = (f: File | null | undefined) => {
-    if (!f) return;
-    if (!ACCEPTED_EXT.includes(fileExt(f.name))) {
-      toast.error(`ไม่รองรับนามสกุลไฟล์นี้ (${ACCEPTED_EXT.join(" ")})`);
-      return;
+  const pick = (list: FileList | null | undefined) => {
+    if (!list || list.length === 0) return;
+    const next: File[] = [];
+    for (const f of Array.from(list)) {
+      if (!ACCEPTED_EXT.includes(fileExt(f.name))) {
+        toast.error(`${f.name}: ไม่รองรับนามสกุลไฟล์นี้ (${ACCEPTED_EXT.join(" ")})`);
+        continue;
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        toast.error(`${f.name}: ไฟล์ใหญ่เกิน 50MB`);
+        continue;
+      }
+      next.push(f);
     }
-    if (f.size > MAX_FILE_SIZE) {
-      toast.error("ไฟล์ใหญ่เกิน 50MB");
-      return;
-    }
-    setFile(f);
+    if (next.length === 0) return;
+    setFiles((prev) => [...prev, ...next]);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const reset = () => {
-    setFile(null);
+    setFiles([]);
     setService("");
     setDragging(false);
   };
@@ -57,8 +66,8 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
         <DialogHeader>
           <DialogTitle>เพิ่มแหล่งข้อมูล</DialogTitle>
           <DialogDescription>
-            รองรับ {ACCEPTED_EXT.join(" ")} ขนาดไม่เกิน 50MB — ไฟล์ .csv ต้องมีคอลัมน์
-            incident_no, service, problem, cause, workaround
+            รองรับ {ACCEPTED_EXT.join(" ")} ขนาดไม่เกิน 50MB ต่อไฟล์ (เลือกได้หลายไฟล์พร้อมกัน) —
+            ไฟล์ .csv ต้องมีคอลัมน์ incident_no, service, problem, cause, workaround
           </DialogDescription>
         </DialogHeader>
 
@@ -71,7 +80,7 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            pick(e.dataTransfer.files?.[0]);
+            pick(e.dataTransfer.files);
           }}
           onClick={() => inputRef.current?.click()}
           className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
@@ -80,21 +89,49 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
         >
           <FileUp className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">
-            {file ? file.name : "ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์"}
+            {files.length > 0
+              ? `เลือกแล้ว ${files.length} ไฟล์ (คลิกเพื่อเพิ่มอีก)`
+              : "ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)"}
           </p>
-          {file && (
-            <p className="text-xs text-muted-foreground">
-              {(file.size / 1024 / 1024).toFixed(2)} MB
-            </p>
-          )}
           <input
             ref={inputRef}
             type="file"
+            multiple
             className="hidden"
             accept={ACCEPTED_EXT.join(",")}
-            onChange={(e) => pick(e.target.files?.[0])}
+            onChange={(e) => {
+              pick(e.target.files);
+              e.target.value = "";
+            }}
           />
         </div>
+
+        {files.length > 0 && (
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
+            {files.map((f, i) => (
+              <li
+                key={`${f.name}-${f.lastModified}-${i}`}
+                className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted"
+              >
+                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {(f.size / 1024 / 1024).toFixed(2)} MB
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(i);
+                  }}
+                  aria-label={`เอา ${f.name} ออก`}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="service">Service (ไม่บังคับ)</Label>
@@ -104,6 +141,11 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
             value={service}
             onChange={(e) => setService(e.target.value)}
           />
+          {files.length > 1 && (
+            <p className="text-xs text-muted-foreground">
+              service เดียวกันนี้จะถูกใช้กับทุกไฟล์ที่เลือก
+            </p>
+          )}
         </div>
 
         <DialogFooter>
@@ -111,16 +153,18 @@ export function UploadDialog({ open, onOpenChange, onSubmit }: Props) {
             ยกเลิก
           </Button>
           <Button
-            disabled={!file}
+            disabled={files.length === 0}
             onClick={() => {
-              if (!file) return;
-              onSubmit(file, service.trim());
+              if (files.length === 0) return;
+              for (const f of files) {
+                onSubmit(f, service.trim());
+              }
               reset();
               onOpenChange(false);
             }}
           >
             <Upload className="size-4" />
-            อัปโหลด
+            อัปโหลด{files.length > 1 ? ` (${files.length} ไฟล์)` : ""}
           </Button>
         </DialogFooter>
       </DialogContent>
