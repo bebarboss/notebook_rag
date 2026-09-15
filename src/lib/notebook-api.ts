@@ -120,6 +120,7 @@ export async function askQuestion(params: {
   question: string;
   top_k: number;
   service?: string | undefined;
+  documents_only?: boolean;
 }): Promise<AskResult> {
   const res = await apiFetch(`${API_BASE_URL}/ask`, {
     method: "POST",
@@ -128,6 +129,7 @@ export async function askQuestion(params: {
       question: params.question,
       top_k: params.top_k,
       service: params.service || null,
+      documents_only: params.documents_only ?? false,
     }),
   });
   if (!res.ok) await parseError(res);

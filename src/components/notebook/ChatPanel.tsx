@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Loader2, Send, Sparkles } from "lucide-react";
+import { Check, ChevronsUpDown, FileText, Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ export type ThreadItem = {
   question: string;
   topK: number;
   service: string;
+  documentsOnly: boolean;
   loading: boolean;
   error?: string;
   answer?: string;
@@ -32,7 +33,7 @@ type Props = {
   activeChannel: string;
   onChannelChange: (channel: string) => void;
   hasSources: boolean;
-  onAsk: (q: string) => void;
+  onAsk: (q: string, documentsOnly: boolean) => void;
   onAddSource: () => void;
   onCiteClick: (citation: Citation) => void;
 };
@@ -118,10 +119,11 @@ export function ChatPanel({
 }: Props) {
   const [q, setQ] = useState("");
   const [channelPickerOpen, setChannelPickerOpen] = useState(false);
+  const [documentsOnly, setDocumentsOnly] = useState(false);
 
   const submit = () => {
     if (!q.trim()) return;
-    onAsk(q.trim());
+    onAsk(q.trim(), documentsOnly);
     setQ("");
   };
 
@@ -212,9 +214,15 @@ export function ChatPanel({
                   {t.question}
                 </div>
               </div>
-              {t.service && (
+              {(t.service || t.documentsOnly) && (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  <Badge variant="outline">service: {t.service}</Badge>
+                  {t.service && <Badge variant="outline">service: {t.service}</Badge>}
+                  {t.documentsOnly && (
+                    <Badge variant="outline" className="gap-1">
+                      <FileText className="size-3" />
+                      เฉพาะ Documents
+                    </Badge>
+                  )}
                 </div>
               )}
 
@@ -248,33 +256,48 @@ export function ChatPanel({
       </div>
 
       <div className="border-t bg-surface p-3 md:p-4">
-        <div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm">
-          <Textarea
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            rows={1}
-            disabled={!activeChannel}
-            placeholder={
-              activeChannel
-                ? "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
-                : "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
-            }
-            className="max-h-40 min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-          />
-          <Button
-            size="icon"
-            onClick={submit}
-            disabled={!q.trim() || !activeChannel}
-            aria-label="ส่งคำถาม"
+        <div className="mx-auto w-full max-w-3xl space-y-2">
+          <button
+            type="button"
+            onClick={() => setDocumentsOnly((v) => !v)}
+            aria-pressed={documentsOnly}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              documentsOnly
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+            }`}
           >
-            <Send className="size-4" />
-          </Button>
+            <FileText className="size-3.5" />
+            ค้นหาเฉพาะ Documents
+          </button>
+          <div className="flex w-full items-end gap-2 rounded-2xl border bg-card p-2 shadow-sm">
+            <Textarea
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              rows={1}
+              disabled={!activeChannel}
+              placeholder={
+                activeChannel
+                  ? "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
+                  : "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
+              }
+              className="max-h-40 min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            />
+            <Button
+              size="icon"
+              onClick={submit}
+              disabled={!q.trim() || !activeChannel}
+              aria-label="ส่งคำถาม"
+            >
+              <Send className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

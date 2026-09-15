@@ -151,10 +151,17 @@ function NotebookPage() {
   }, []);
 
   const handleAsk = useCallback(
-    async (question: string) => {
+    async (question: string, documentsOnly: boolean) => {
       const channel = activeChannel; // capture ตอนถาม กันกรณีสลับ channel ระหว่างรอคำตอบ
       const id = crypto.randomUUID();
-      const item: ThreadItem = { id, question, topK: TOP_K, service: channel, loading: true };
+      const item: ThreadItem = {
+        id,
+        question,
+        topK: TOP_K,
+        service: channel,
+        documentsOnly,
+        loading: true,
+      };
       setThreadsByChannel((prev) => ({
         ...prev,
         [channel]: [...(prev[channel] ?? []), item],
@@ -165,6 +172,7 @@ function NotebookPage() {
           question,
           top_k: TOP_K,
           service: channel || undefined,
+          documents_only: documentsOnly,
         });
         setThreadsByChannel((prev) => ({
           ...prev,
