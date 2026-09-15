@@ -38,18 +38,8 @@ type Props = {
   onCiteClick: (citation: Citation) => void;
 };
 
-// ป้ายกำกับปุ่มอ้างอิง ให้สื่อว่ามาจากแหล่งไหน (Manual/Incident/Known Issue) แทนที่จะโชว์แค่ [n] ดิบๆ
-function citationLabel(citation: Citation) {
-  const kindLabel =
-    citation.kind === "doc"
-      ? "Manual result"
-      : citation.kind === "incident"
-        ? "Incident result"
-        : "Known Issue result";
-  return `${kindLabel} ${citation.number}`;
-}
-
 // แยกข้อความส่วนที่เหลือ (นอก code block) ตามรูปแบบ [n] แล้วแปลงให้เป็นปุ่มคลิกได้ที่ map ไปยัง citations[n-1]
+// ปุ่มโชว์แค่ [n] ดิบๆ (ไม่ใช่ "Manual result n") เพื่อให้กระชับ กดแล้วเปิดรายละเอียดเหมือนเดิม
 function renderWithCitations(
   text: string,
   citations: Citation[],
@@ -68,7 +58,7 @@ function renderWithCitations(
         onClick={() => onCiteClick(citation)}
         className="mx-0.5 inline-flex items-center rounded bg-primary/15 px-1.5 py-0.5 align-middle text-xs font-semibold text-primary underline decoration-dotted hover:bg-primary/25"
       >
-        {citationLabel(citation)}
+        {part}
       </button>
     );
   });
