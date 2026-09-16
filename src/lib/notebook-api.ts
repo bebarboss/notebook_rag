@@ -152,6 +152,14 @@ export async function listSources(): Promise<{ sources: SourceInfo[] }> {
   return res.json();
 }
 
+export async function fetchSourceFile(source: string): Promise<Blob> {
+  const url = new URL(`${API_BASE_URL}/sources/file`);
+  url.searchParams.set("source", source);
+  const res = await apiFetch(url.toString(), { headers: authHeaders() });
+  if (!res.ok) await parseError(res);
+  return res.blob();
+}
+
 export async function uploadSource(file: File, service: string): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);

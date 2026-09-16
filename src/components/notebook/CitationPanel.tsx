@@ -1,10 +1,35 @@
-import { BookOpen, FileText, TriangleAlert, X } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, ExternalLink, FileText, Loader2, TriangleAlert, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Citation } from "@/lib/notebook-api";
+import { fetchSourceFile, type Citation } from "@/lib/notebook-api";
+
+// เปิดไฟล์ PDF ต้นฉบับในแท็บใหม่ เลื่อนไปหน้าที่อ้างอิงด้วย URL fragment #page=N (ใช้ตัว
+// PDF viewer ในตัวของเบราว์เซอร์ — รองรับ Chrome/Firefox/Edge บนเดสก์ท็อป)
+// โหลดผ่าน fetch + Bearer token ก่อน (ไม่ใช้ <a href> ตรงๆ เพราะ endpoint ต้องการ auth header
+// ซึ่งการเปิดลิงก์ตรงๆ ของเบราว์เซอร์ส่งให้ไม่ได้) แล้วค่อยเปิด blob URL ที่ได้ในแท็บใหม่
+async function openPdfAtPage(source: string, page: number | null | undefined) {
+  const blob = await fetchSourceFile(source);
+  const url = URL.createObjectURL(blob);
+  window.open(page ? `${url}#page=${page}` : url, "_blank");
+}
 
 export function CitationPanel({ citation, onClose }: { citation: Citation; onClose: () => void }) {
+  const [openingPdf, setOpeningPdf] = useState(false);
   const pct = Math.round(Math.max(0, Math.min(1, citation.score)) * 100);
+  const isPdf = citation.kind === "doc" && citation.source.toLowerCase().endsWith(".pdf");
+
+  const handleOpenPdf = async () => {
+    setOpeningPdf(true);
+    try {
+      await openPdfAtPage(citation.source, citation.page);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "เปิดไฟล์ไม่สำเร็จ");
+    } finally {
+      setOpeningPdf(false);
+    }
+  };
 
   const incidentRows: Array<[string, string | null | undefined]> = [
     ["ปัญหา", citation.problem],
@@ -61,6 +86,25 @@ export function CitationPanel({ citation, onClose }: { citation: Citation; onClo
                 </div>
               )}
             </div>
+            {isPdf && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleOpenPdf()}
+                disabled={openingPdf}
+                className="gap-1.5"
+              >
+                {openingPdf ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="size-3.5" />
+                )}
+                เปิดดู PDF
+                {citation.page !== null && citation.page !== undefined
+                  ? ` (หน้า ${citation.page})`
+                  : ""}
+              </Button>
+            )}
             <div>
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">เนื้อหา</p>
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{citation.content}</p>
