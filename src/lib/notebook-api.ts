@@ -126,6 +126,7 @@ export async function askQuestion(params: {
   service?: string | undefined;
   documents_only?: boolean;
   history?: HistoryMessage[];
+  image_text?: string;
 }): Promise<AskResult> {
   const res = await apiFetch(`${API_BASE_URL}/ask`, {
     method: "POST",
@@ -136,7 +137,21 @@ export async function askQuestion(params: {
       service: params.service || null,
       documents_only: params.documents_only ?? false,
       history: params.history ?? [],
+      image_text: params.image_text || null,
     }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+// อ่านข้อความจากรูปที่ผู้ใช้แนบ (OCR ฝั่ง server) — รูปไม่ถูกเก็บ ได้กลับมาแค่ข้อความ
+export async function ocrImage(file: File): Promise<{ text: string; length: number }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await apiFetch(`${API_BASE_URL}/ocr`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
   });
   if (!res.ok) await parseError(res);
   return res.json();

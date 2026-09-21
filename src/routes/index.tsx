@@ -24,7 +24,7 @@ import {
   type HistoryMessage,
 } from "@/lib/notebook-api";
 import { clearSession, getToken } from "@/lib/auth";
-import type { SourceItem } from "@/lib/notebook-types";
+import { joinImageText, type SourceItem, type ThreadImage } from "@/lib/notebook-types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -152,7 +152,7 @@ function NotebookPage() {
   }, []);
 
   const handleAsk = useCallback(
-    async (question: string, documentsOnly: boolean) => {
+    async (question: string, documentsOnly: boolean, images: ThreadImage[]) => {
       const channel = activeChannel; // capture ตอนถาม กันกรณีสลับ channel ระหว่างรอคำตอบ
 
       // ส่งบทสนทนาก่อนหน้าไปด้วยเฉพาะตอนที่ AI เพิ่งขอข้อมูลเพิ่ม (ข้อความล่าสุดใน thread เป็น
@@ -169,7 +169,14 @@ function NotebookPage() {
           chain.unshift(t);
         }
         for (const t of chain) {
-          history.push({ role: "user", content: t.question });
+          // รอบก่อนที่แนบรูป: ข้อความจากรูปต้องไปกับ history ด้วย ไม่งั้นรอบตอบกลับจะเสียบริบทของรูป
+          const prevImageText = joinImageText(t.images);
+          history.push({
+            role: "user",
+            content: prevImageText
+              ? `${t.question}\n\n[ข้อความจากรูปที่แนบ]\n${prevImageText}`
+              : t.question,
+          });
           history.push({ role: "assistant", content: t.answer ?? "" });
         }
       }
@@ -182,6 +189,7 @@ function NotebookPage() {
         service: channel,
         documentsOnly,
         loading: true,
+        ...(images.length > 0 ? { images } : {}),
       };
       setThreadsByChannel((prev) => ({
         ...prev,
@@ -195,6 +203,7 @@ function NotebookPage() {
           service: channel || undefined,
           documents_only: documentsOnly,
           history,
+          image_text: joinImageText(images),
         });
         setThreadsByChannel((prev) => ({
           ...prev,
