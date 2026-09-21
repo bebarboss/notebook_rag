@@ -25,6 +25,8 @@ export type ThreadItem = {
   error?: string;
   answer?: string;
   citations?: Citation[];
+  // AI ขอข้อมูลเพิ่มจาก user แทนที่จะตอบเลย — ข้อความถัดไปของ user คือคำตอบของคำถามนี้
+  needsClarification?: boolean;
 };
 
 type Props = {
@@ -110,6 +112,9 @@ export function ChatPanel({
   const [q, setQ] = useState("");
   const [channelPickerOpen, setChannelPickerOpen] = useState(false);
   const [documentsOnly, setDocumentsOnly] = useState(false);
+
+  const lastItem = thread[thread.length - 1];
+  const awaitingReply = !!lastItem?.needsClarification && !lastItem.loading && !lastItem.error;
 
   const submit = () => {
     if (!q.trim()) return;
@@ -231,7 +236,12 @@ export function ChatPanel({
 
               {!t.loading && !t.error && t.answer && (
                 <div className="flex justify-start">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border bg-card px-4 py-3 text-sm leading-relaxed">
+                  <div
+                    className={cn(
+                      "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border bg-card px-4 py-3 text-sm leading-relaxed",
+                      t.needsClarification && "border-warning/60 bg-warning/5",
+                    )}
+                  >
                     <AnswerText
                       text={t.answer}
                       citations={t.citations ?? []}
@@ -273,9 +283,11 @@ export function ChatPanel({
               rows={1}
               disabled={!activeChannel}
               placeholder={
-                activeChannel
-                  ? "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
-                  : "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
+                !activeChannel
+                  ? "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
+                  : awaitingReply
+                    ? "พิมพ์ข้อมูลเพิ่มเติมตามที่ AI ถามด้านบน (หรือพิมพ์คำถามใหม่เพื่อเริ่มเรื่องอื่น)..."
+                    : "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
               }
               className="max-h-40 min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
             />

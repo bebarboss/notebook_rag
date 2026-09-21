@@ -114,13 +114,18 @@ export type AskResult = {
   question: string;
   answer: string;
   citations: Citation[];
+  // true = AI ขอข้อมูลเพิ่มจาก user แทนที่จะตอบเลย (คำตอบขึ้นต้นด้วย [ต้องการข้อมูลเพิ่มเติม])
+  needs_clarification: boolean;
 };
+
+export type HistoryMessage = { role: "user" | "assistant"; content: string };
 
 export async function askQuestion(params: {
   question: string;
   top_k: number;
   service?: string | undefined;
   documents_only?: boolean;
+  history?: HistoryMessage[];
 }): Promise<AskResult> {
   const res = await apiFetch(`${API_BASE_URL}/ask`, {
     method: "POST",
@@ -130,6 +135,7 @@ export async function askQuestion(params: {
       top_k: params.top_k,
       service: params.service || null,
       documents_only: params.documents_only ?? false,
+      history: params.history ?? [],
     }),
   });
   if (!res.ok) await parseError(res);

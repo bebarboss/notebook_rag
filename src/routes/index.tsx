@@ -21,6 +21,7 @@ import {
   listSources,
   uploadSource,
   type Citation,
+  type HistoryMessage,
 } from "@/lib/notebook-api";
 import { clearSession, getToken } from "@/lib/auth";
 import type { SourceItem } from "@/lib/notebook-types";
@@ -153,6 +154,26 @@ function NotebookPage() {
   const handleAsk = useCallback(
     async (question: string, documentsOnly: boolean) => {
       const channel = activeChannel; // capture ตอนถาม กันกรณีสลับ channel ระหว่างรอคำตอบ
+
+      // ส่งบทสนทนาก่อนหน้าไปด้วยเฉพาะตอนที่ AI เพิ่งขอข้อมูลเพิ่ม (ข้อความล่าสุดใน thread เป็น
+      // needsClarification) — เดินย้อนกลับตามลูกโซ่ของรอบที่ขอข้อมูลติดกัน จำกัด 3 คู่ตามที่
+      // backend รับได้ (6 ข้อความ) คำถามใหม่ที่ไม่เกี่ยวกันจึงเป็นคำถามเดี่ยวเหมือนเดิม ไม่ปนบริบทเก่า
+      // โหมด documents only ไม่ขอข้อมูลเพิ่ม จึงไม่ส่ง history
+      const history: HistoryMessage[] = [];
+      if (!documentsOnly) {
+        const chain: ThreadItem[] = [];
+        const items = threadsByChannel[channel] ?? [];
+        for (let i = items.length - 1; i >= 0 && chain.length < 3; i--) {
+          const t = items[i];
+          if (!t || !t.needsClarification || !t.answer) break;
+          chain.unshift(t);
+        }
+        for (const t of chain) {
+          history.push({ role: "user", content: t.question });
+          history.push({ role: "assistant", content: t.answer ?? "" });
+        }
+      }
+
       const id = crypto.randomUUID();
       const item: ThreadItem = {
         id,
@@ -173,12 +194,19 @@ function NotebookPage() {
           top_k: TOP_K,
           service: channel || undefined,
           documents_only: documentsOnly,
+          history,
         });
         setThreadsByChannel((prev) => ({
           ...prev,
           [channel]: (prev[channel] ?? []).map((t) =>
             t.id === id
-              ? { ...t, loading: false, answer: res.answer, citations: res.citations }
+              ? {
+                  ...t,
+                  loading: false,
+                  answer: res.answer,
+                  citations: res.citations,
+                  needsClarification: res.needs_clarification,
+                }
               : t,
           ),
         }));
@@ -193,7 +221,7 @@ function NotebookPage() {
         toast.error(detail);
       }
     },
-    [activeChannel],
+    [activeChannel, threadsByChannel],
   );
 
   const handleCiteClick = useCallback((citation: Citation) => {
