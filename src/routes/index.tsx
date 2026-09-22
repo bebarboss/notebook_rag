@@ -190,6 +190,7 @@ function NotebookPage() {
         documentsOnly,
         loading: true,
         ...(images.length > 0 ? { images } : {}),
+        ...(history.length > 0 ? { usedContext: true } : {}),
       };
       setThreadsByChannel((prev) => ({
         ...prev,
