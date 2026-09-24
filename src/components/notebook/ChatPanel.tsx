@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   Check,
   ChevronsUpDown,
+  Copy,
   FileText,
   ImagePlus,
   Link2,
@@ -11,6 +12,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -67,34 +71,160 @@ type Props = {
   onCiteClick: (citation: Citation) => void;
 };
 
-// แยกข้อความส่วนที่เหลือ (นอก code block) ตามรูปแบบ [n] แล้วแปลงให้เป็นปุ่มคลิกได้ที่ map ไปยัง citations[n-1]
-// ปุ่มโชว์แค่ [n] ดิบๆ (ไม่ใช่ "Manual result n") เพื่อให้กระชับ กดแล้วเปิดรายละเอียดเหมือนเดิม
-function renderWithCitations(
-  text: string,
-  citations: Citation[],
-  onCiteClick: (c: Citation) => void,
-  keyPrefix: string,
-) {
-  const parts = text.split(/(\[\d+\])/g);
-  return parts.map((part, i) => {
-    const m = /^\[(\d+)\]$/.exec(part);
-    const citation = m ? citations[Number(m[1]) - 1] : undefined;
-    if (!citation) return <span key={`${keyPrefix}-${i}`}>{part}</span>;
-    return (
-      <button
-        key={`${keyPrefix}-${i}`}
-        type="button"
-        onClick={() => onCiteClick(citation)}
-        className="mx-0.5 inline-flex items-center rounded bg-primary/15 px-1.5 py-0.5 align-middle text-xs font-semibold text-primary underline decoration-dotted hover:bg-primary/25"
-      >
-        {part}
-      </button>
-    );
-  });
+// แปลงเลขอ้างอิง [n] ในข้อความ (เฉพาะนอก code block) ให้เป็นลิงก์ Markdown "[n](cite:n)" ก่อนส่งเข้า
+// react-markdown — CustomLink (component "a" ด้านล่าง) ดักลิงก์ scheme "cite:" นี้ไปเรียก onCiteClick
+// แทนที่จะเปิดจริง ไม่แตะ [n] ที่อยู่ในโค้ด (กัน arr[3] ในโค้ดกลายเป็นลิงก์ผิดๆ) และไม่แตะ [n] ที่ถูก
+// ทำเป็นลิงก์ไปแล้ว (regex กันซ้ำด้วย negative lookahead)
+function linkifyCitations(text: string): string {
+  const segments = text.split(/(```[a-zA-Z]*\n?[\s\S]*?```)/g);
+  return segments
+    .map((seg, i) => (i % 2 === 1 ? seg : seg.replace(/\[(\d+)\](?!\()/g, "[$1](cite:$1)")))
+    .join("");
 }
 
-// แยกข้อความคำตอบเป็นส่วน code block (```...```) กับข้อความปกติ — code block render เป็น
-// <pre><code> ตัวเอกซ์เตี้ยม (monospace) ไม่ต้อง parse [n] ข้างในเพราะโค้ด/query ไม่มีการอ้างอิง
+// ดึงข้อความล้วนๆ จากต้นไม้ children ของ react-markdown (ใช้กับปุ่มคัดลอกโค้ด — ต้องได้ข้อความดิบ
+// ไม่ใช่ React element)
+function getPlainText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(getPlainText).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    return getPlainText((node as ReactElement<{ children?: ReactNode }>).props.children);
+  }
+  return "";
+}
+
+// สไตล์หัวข้อ/ย่อหน้า/รายการ/ตารางของคำตอบ AI ให้เข้ากับ bubble แชท (ไม่ใช้ปลั๊กอิน prose เพราะสี
+// ต้องอิง token ธีมของโปรเจกต์เอง ให้รองรับ dark mode อัตโนมัติเหมือนส่วนอื่นของแอป) — component พวกนี้
+// ไม่ต้องใช้ citations/onCiteClick เลยประกาศเป็น module-level เดียวคงที่ (ไม่ต้องสร้างใหม่ทุก render)
+function Heading({ children }: { children?: ReactNode }) {
+  return <h2 className="mb-2 mt-4 text-sm font-semibold text-foreground first:mt-0">{children}</h2>;
+}
+
+function SubHeading({ children }: { children?: ReactNode }) {
+  return (
+    <h3 className="mb-1.5 mt-3 text-sm font-semibold text-foreground first:mt-0">{children}</h3>
+  );
+}
+
+function Paragraph({ children }: { children?: ReactNode }) {
+  return <p className="mb-3 leading-relaxed last:mb-0">{children}</p>;
+}
+
+function Strong({ children }: { children?: ReactNode }) {
+  return <strong className="font-semibold text-foreground">{children}</strong>;
+}
+
+function BulletList({ children }: { children?: ReactNode }) {
+  return <ul className="mb-3 ms-5 list-disc space-y-1 last:mb-0">{children}</ul>;
+}
+
+function NumberList({ children }: { children?: ReactNode }) {
+  return <ol className="mb-3 ms-5 list-decimal space-y-1 last:mb-0">{children}</ol>;
+}
+
+function MdListItem({ children }: { children?: ReactNode }) {
+  return <li className="leading-relaxed">{children}</li>;
+}
+
+// ตารางกว้างเกิน bubble ให้เลื่อนแนวนอนได้ในตัวเอง ไม่ดันหน้าจอล้น (สำคัญบนมือถือ)
+function TableWrap({ children }: { children?: ReactNode }) {
+  return (
+    <div className="my-3 w-full overflow-x-auto rounded-lg border">
+      <table className="w-full min-w-max border-collapse text-xs">{children}</table>
+    </div>
+  );
+}
+
+function TableHead({ children }: { children?: ReactNode }) {
+  return <thead className="bg-muted">{children}</thead>;
+}
+
+function TableHeaderCell({ children }: { children?: ReactNode }) {
+  return (
+    <th className="whitespace-nowrap border-b border-border px-3 py-2 text-left font-medium text-muted-foreground">
+      {children}
+    </th>
+  );
+}
+
+function TableDataCell({ children }: { children?: ReactNode }) {
+  return <td className="border-b border-border px-3 py-2 align-top">{children}</td>;
+}
+
+function TableBodyRow({ children }: { children?: ReactNode }) {
+  return <tr className="even:bg-muted/30">{children}</tr>;
+}
+
+// inline code (` ` เดี่ยว) เทียบกับ code block (``` ``` ที่ backend บังคับใส่ภาษากำกับเสมอ เช่น
+// ```sql) แยกกันด้วย className "language-x" ที่ remark ใส่ให้เฉพาะ code block เท่านั้น
+function InlineOrBlockCode({
+  className,
+  children,
+}: {
+  className?: string | undefined;
+  children?: ReactNode;
+}) {
+  if (/language-/.test(className ?? "")) {
+    return <code className={cn("font-mono", className)}>{children}</code>;
+  }
+  return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>;
+}
+
+// code block พร้อมปุ่มคัดลอก (ต้องการ useState เก็บสถานะ "คัดลอกแล้ว" — ต่างจาก component อื่นด้านบน
+// ที่เป็น stateless ล้วนๆ)
+function CodeBlockPre({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const code = getPlainText(children).replace(/\n$/, "");
+
+  const copy = () => {
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => toast.error("คัดลอกโค้ดไม่สำเร็จ"));
+  };
+
+  return (
+    <div className="group relative my-2">
+      <pre className="overflow-x-auto rounded-lg border bg-muted p-3 pr-10 font-mono text-xs">
+        {children}
+      </pre>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label="คัดลอกโค้ด"
+        className="absolute right-2 top-2 rounded-md border bg-card/90 p-1.5 text-muted-foreground shadow-sm hover:text-foreground"
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+const markdownComponents: Components = {
+  h1: Heading,
+  h2: Heading,
+  h3: SubHeading,
+  h4: SubHeading,
+  p: Paragraph,
+  strong: Strong,
+  ul: BulletList,
+  ol: NumberList,
+  li: MdListItem,
+  table: TableWrap,
+  thead: TableHead,
+  th: TableHeaderCell,
+  td: TableDataCell,
+  tr: TableBodyRow,
+  code: InlineOrBlockCode,
+  pre: CodeBlockPre,
+};
+
+// เรนเดอร์คำตอบ AI เป็น Markdown จริง (react-markdown + remark-gfm สำหรับตาราง/checklist, remark-breaks
+// ให้ 1 บรรทัดใหม่ = 1 บรรทัดใหม่จริงเหมือนที่ AI เขียน แทนที่จะถูก commonmark รวมเป็นย่อหน้าเดียว) —
+// ห้ามใช้ rehype-raw/dangerouslySetInnerHTML เด็ดขาด (คำตอบมาจาก AI เชื่อถือไม่ได้ 100%)
 function AnswerText({
   text,
   citations,
@@ -104,25 +234,30 @@ function AnswerText({
   citations: Citation[];
   onCiteClick: (c: Citation) => void;
 }) {
-  const segments = text.split(/(```[a-zA-Z]*\n?[\s\S]*?```)/g);
+  // เลขอ้างอิง [n] ต้องกดได้เหมือนเดิม — ดักที่ "a" เฉพาะ href scheme "cite:n" ที่ linkifyCitations
+  // สร้างขึ้นเท่านั้น เลขที่เกินขอบเขต citations (ไม่รู้จัก) ให้โชว์เป็นข้อความเฉยๆ ไม่เป็นปุ่ม
+  const components: Components = {
+    ...markdownComponents,
+    a({ href, children }) {
+      const m = /^cite:(\d+)$/.exec(href ?? "");
+      const citation = m ? citations[Number(m[1]) - 1] : undefined;
+      if (!citation) return <>{children}</>;
+      return (
+        <button
+          type="button"
+          onClick={() => onCiteClick(citation)}
+          className="mx-0.5 inline-flex items-center rounded bg-primary/15 px-1.5 py-0.5 align-middle text-xs font-semibold text-primary underline decoration-dotted hover:bg-primary/25"
+        >
+          {children}
+        </button>
+      );
+    },
+  };
+
   return (
-    <>
-      {segments.map((seg, si) => {
-        const codeMatch = /^```([a-zA-Z]*)\n?([\s\S]*?)```$/.exec(seg);
-        if (codeMatch) {
-          const code = (codeMatch[2] ?? "").replace(/\n$/, "");
-          return (
-            <pre
-              key={si}
-              className="my-2 overflow-x-auto rounded-lg border bg-muted p-3 font-mono text-xs"
-            >
-              <code>{code}</code>
-            </pre>
-          );
-        }
-        return <span key={si}>{renderWithCitations(seg, citations, onCiteClick, `${si}`)}</span>;
-      })}
-    </>
+    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
+      {linkifyCitations(text)}
+    </ReactMarkdown>
   );
 }
 
@@ -364,7 +499,9 @@ export function ChatPanel({
                 <div className="flex justify-start">
                   <div
                     className={cn(
-                      "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm border bg-card px-4 py-3 text-sm leading-relaxed",
+                      // min-w-0 จำเป็นเพื่อให้ overflow-x-auto ของตารางข้างในทำงานจริง ไม่งั้น flex
+                      // item จะขยายกว้างตามเนื้อหาแทนที่จะยอมให้ตารางเลื่อนในตัวเอง (โดยเฉพาะมือถือ)
+                      "min-w-0 max-w-[85%] rounded-2xl rounded-bl-sm border bg-card px-4 py-3 text-sm",
                       t.needsClarification && "border-warning/60 bg-warning/5",
                     )}
                   >
