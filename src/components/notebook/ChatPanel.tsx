@@ -255,7 +255,17 @@ function AnswerText({
   };
 
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkBreaks]}
+      components={components}
+      // react-markdown sanitizes href/src by default and blanks any scheme it doesn't recognize
+      // (http/https/mailto/tel/relative) — our synthetic "cite:n" scheme got silently stripped to
+      // "" by this, so every [n] citation was falling back to plain unstyled text (looked "off" in
+      // tables especially). Explicitly allow only our own scheme through; everything else still
+      // gets blocked like before — the "a" component above never spreads href onto a real anchor
+      // anyway (button or plain text only), so this can't reopen an XSS surface.
+      urlTransform={(url) => (/^cite:\d+$/.test(url) ? url : "")}
+    >
       {linkifyCitations(text)}
     </ReactMarkdown>
   );
