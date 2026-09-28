@@ -430,8 +430,8 @@ export function ChatPanel({
               ) : (
                 <>
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    เริ่มต้นด้วยการอัปโหลดไฟล์แรกของคุณ (PDF, TXT, EPUB หรือ CSV ของ incident)
-                    แล้วถามคำถามเป็นภาษาไทยได้ทันที
+                    เริ่มต้นด้วยการอัปโหลดไฟล์แรกของคุณ (PDF, Word, PowerPoint, TXT, EPUB หรือ CSV
+                    ของ incident) แล้วถามคำถามเป็นภาษาไทยได้ทันที
                   </p>
                   <Button onClick={onAddSource}>อัปโหลดไฟล์แรก</Button>
                 </>

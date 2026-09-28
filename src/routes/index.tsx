@@ -33,7 +33,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "อัปโหลด PDF, TXT, EPUB หรือ CSV ของ incident แล้วค้นหาแหล่งอ้างอิงที่เกี่ยวข้องที่สุดได้ทันที",
+          "อัปโหลด PDF, Word, PowerPoint, TXT, EPUB หรือ CSV ของ incident แล้วค้นหาแหล่งอ้างอิงที่เกี่ยวข้องที่สุดได้ทันที",
       },
       { property: "og:title", content: "Notebook RAG" },
       {
