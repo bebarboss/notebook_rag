@@ -283,7 +283,8 @@ export function ChatPanel({
 }: Props) {
   const [q, setQ] = useState("");
   const [channelPickerOpen, setChannelPickerOpen] = useState(false);
-  const [documentsOnly, setDocumentsOnly] = useState(false);
+  // ค่าเริ่มต้นเป็นโหมดค้นหาเฉพาะ Documents (กดปุ่มเพื่อปิดแล้วใช้โหมดรวม Manual+Incident ได้)
+  const [documentsOnly, setDocumentsOnly] = useState(true);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
