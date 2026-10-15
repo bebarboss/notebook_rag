@@ -5,7 +5,6 @@ import {
   Copy,
   FileText,
   ImagePlus,
-  Link2,
   Loader2,
   Send,
   Sparkles,
@@ -41,12 +40,7 @@ export type ThreadItem = {
   error?: string;
   answer?: string;
   citations?: Citation[];
-  // AI ขอข้อมูลเพิ่มจาก user แทนที่จะตอบเลย — ข้อความถัดไปของ user คือคำตอบของคำถามนี้
-  needsClarification?: boolean;
   images?: ThreadImage[];
-  // true = รอบนี้ส่ง history ของคำถาม-คำตอบก่อนหน้าไปด้วย (ต่อจากที่ AI เพิ่งขอข้อมูลเพิ่ม)
-  // AI จึงยังจำบริบทเดิมอยู่ตอนตอบ ไม่ใช่เริ่มวิเคราะห์ใหม่
-  usedContext?: boolean;
 };
 
 type Attachment = {
@@ -339,9 +333,6 @@ export function ChatPanel({
   const canSend =
     !!activeChannel && !readingImages && (q.trim().length > 0 || readyImages.length > 0);
 
-  const lastItem = thread[thread.length - 1];
-  const awaitingReply = !!lastItem?.needsClarification && !lastItem.loading && !lastItem.error;
-
   const submit = () => {
     if (!canSend) return;
     // แนบรูปอย่างเดียวไม่พิมพ์คำถาม → ใช้คำถามตั้งต้น (API ต้องมีคำถามอย่างน้อย 1 ตัวอักษร)
@@ -471,23 +462,13 @@ export function ChatPanel({
                   </details>
                 </div>
               )}
-              {(t.service || t.documentsOnly || t.usedContext) && (
+              {(t.service || t.documentsOnly) && (
                 <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   {t.service && <Badge variant="outline">service: {t.service}</Badge>}
                   {t.documentsOnly && (
                     <Badge variant="outline" className="gap-1">
                       <FileText className="size-3" />
                       เฉพาะ Documents
-                    </Badge>
-                  )}
-                  {t.usedContext && (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-primary/40 text-primary"
-                      title="AI ใช้คำถาม-คำตอบก่อนหน้าประกอบการตอบรอบนี้ด้วย"
-                    >
-                      <Link2 className="size-3" />
-                      ใช้บริบทก่อนหน้า
                     </Badge>
                   )}
                 </div>
@@ -513,7 +494,6 @@ export function ChatPanel({
                       // min-w-0 จำเป็นเพื่อให้ overflow-x-auto ของตารางข้างในทำงานจริง ไม่งั้น flex
                       // item จะขยายกว้างตามเนื้อหาแทนที่จะยอมให้ตารางเลื่อนในตัวเอง (โดยเฉพาะมือถือ)
                       "min-w-0 max-w-[85%] rounded-2xl rounded-bl-sm border bg-card px-4 py-3 text-sm",
-                      t.needsClarification && "border-warning/60 bg-warning/5",
                     )}
                   >
                     <AnswerText
@@ -626,9 +606,7 @@ export function ChatPanel({
               placeholder={
                 !activeChannel
                   ? "เลือก service ด้านบนก่อนเริ่มถามคำถาม"
-                  : awaitingReply
-                    ? "พิมพ์ข้อมูลเพิ่มเติมตามที่ AI ถามด้านบน (หรือพิมพ์คำถามใหม่เพื่อเริ่มเรื่องอื่น)..."
-                    : "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
+                  : "ถามเกี่ยวกับเอกสารหรือ incident ของคุณ..."
               }
               className="max-h-40 min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
             />
