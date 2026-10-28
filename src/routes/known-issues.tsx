@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,57 @@ export const Route = createFileRoute("/known-issues")({
   }),
   component: KnownIssuesPage,
 });
+
+const TXT_IMPORT_MAX_BYTES = 2 * 1024 * 1024; // 2MB พอสำหรับข้อความขั้นตอนตรวจสอบ ใหญ่กว่านี้ผิดปกติ
+
+// ปุ่มดึงข้อความจากไฟล์ .txt มาแทนที่ช่อง "ขั้นตอนการตรวจสอบโดยละเอียด" แทนการพิมพ์เอง — อ่านไฟล์
+// ฝั่ง browser ล้วนๆ (File.text()) ไม่ผ่าน backend เลย เพราะแค่ต้องการข้อความดิบไปใส่ textarea
+function TxtImportButton({
+  currentValue,
+  onText,
+}: {
+  currentValue: string;
+  onText: (text: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".txt,text/plain"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          if (file.size > TXT_IMPORT_MAX_BYTES) {
+            toast.error(`${file.name}: ไฟล์ใหญ่เกิน 2MB`);
+            return;
+          }
+          if (
+            currentValue.trim() &&
+            !window.confirm(`แทนที่ข้อความปัจจุบันด้วยเนื้อหาจาก "${file.name}" หรือไม่?`)
+          ) {
+            return;
+          }
+          void file
+            .text()
+            .then((text) => {
+              onText(text);
+              toast.success(`นำเข้าข้อความจาก ${file.name} แล้ว`);
+            })
+            .catch(() => toast.error(`${file.name}: อ่านไฟล์ไม่สำเร็จ`));
+        }}
+      />
+      <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+        <Upload className="size-3.5" />
+        นำเข้าจาก .txt
+      </Button>
+    </>
+  );
+}
 
 function KnownIssuesPage() {
   const navigate = useNavigate();
@@ -201,6 +252,9 @@ function KnownIssuesPage() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex justify-end">
+              <TxtImportButton currentValue={newCatDetail} onText={setNewCatDetail} />
+            </div>
             <Textarea
               placeholder="ขั้นตอนการตรวจสอบโดยละเอียด เช่น SQL query, ฟิลด์ที่ต้องเช็ค, วิธีนำทางในระบบ"
               rows={4}
@@ -275,6 +329,9 @@ function KnownIssuesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <div className="flex justify-end">
+                      <TxtImportButton currentValue={editCatDetail} onText={setEditCatDetail} />
+                    </div>
                     <Textarea
                       rows={4}
                       value={editCatDetail}
