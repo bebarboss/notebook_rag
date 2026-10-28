@@ -41,6 +41,8 @@ export type UploadResponse = {
   saved_path: string;
   service: string | null;
   status: string;
+  // จำนวนหน้าที่เป็นภาพสแกน (ไม่มี text layer) ที่ระบบใช้ Typhoon OCR อ่านแทน
+  ocr_pages: number;
 };
 
 export class ApiError extends Error {}

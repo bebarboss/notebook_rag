@@ -140,7 +140,11 @@ function NotebookPage() {
             : s,
         ),
       );
-      toast.success(`อัปโหลด ${res.filename} สำเร็จ`);
+      toast.success(
+        res.ocr_pages > 0
+          ? `อัปโหลด ${res.filename} สำเร็จ (ใช้ OCR อ่าน ${res.ocr_pages} หน้าที่เป็นภาพสแกน)`
+          : `อัปโหลด ${res.filename} สำเร็จ`,
+      );
     } catch (e) {
       const detail = e instanceof Error ? e.message : "อัปโหลดไม่สำเร็จ";
       setSources((prev) =>
